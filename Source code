@@ -1,0 +1,238 @@
+#error searching on wikipedia opening files like games and stuff
+
+import speech_recognition as sr
+import openai
+import webbrowser
+from gtts import gTTS
+import os
+import pyjokes
+import datetime
+import psutil
+import shutil
+import requests
+from pydub import AudioSegment
+from pydub.playback import play
+
+# ✅ Ensure ffmpeg is installed
+if shutil.which("ffmpeg") is None:
+    print("⚠️ Warning: ffmpeg is not installed or not in PATH!")
+
+# ✅ Secure API Key Setup (Use environment variable)
+openai.api_key = '<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>' # Set your API key in environment variables
+
+if openai.api_key is None:
+    print("⚠️ OpenAI API Key is missing! Set it using environment variables.")
+else:
+    print("✅ OpenAI API Key Loaded Successfully")
+
+# ✅ Speech Recognition Function
+def recognize_speech():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("🎤 Listening... Speak now!")
+        recognizer.adjust_for_ambient_noise(source)
+        audio_data = recognizer.listen(source)
+
+    try:
+        return recognizer.recognize_google(audio_data).lower()
+    except sr.UnknownValueError:
+        return "Could not understand the audio."
+    except sr.RequestError:
+        return "Could not request results from Google Speech Recognition service."
+
+# ✅ Functions for Time, Date, Battery
+def get_time():
+    return datetime.datetime.now().strftime("%I:%M %p")
+
+def get_date():
+    return datetime.datetime.now().strftime("%A, %B %d, %Y")
+
+def get_battery_status():
+    battery = psutil.sensors_battery()
+    if battery is None:
+        return "Battery status is not available."
+
+    percent = battery.percent
+    charging = "charging" if battery.power_plugged else "not charging"
+    return f"Battery is at {percent}% and is currently {charging}."
+
+# ✅ AI Response Generator
+def get_ai_response(user_text):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful AI assistant."},
+                {"role": "user", "content": user_text},
+            ]
+        )
+        return response["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ✅ Text-to-Speech Function
+def text_to_speech(text):
+    try:
+        speech_file = "response.mp3"
+        if os.path.exists(speech_file):
+            os.remove(speech_file)
+
+        tts = gTTS(text=text, lang="en")
+        tts.save(speech_file)
+
+        # ✅ Convert MP3 to WAV
+        wav_file = "response.wav"
+        audio = AudioSegment.from_mp3(speech_file)
+        audio.export(wav_file, format="wav")
+
+        # ✅ Play Audio
+        play(AudioSegment.from_wav(wav_file))
+
+    except Exception as e:
+        print(f"Error generating speech: {e}")
+
+# ✅ Get Location Based on IP
+def get_location():
+    try:
+        response = requests.get("https://ipinfo.io/json")  # Get location data
+        data = response.json()
+
+        city = data.get("city", "Unknown city")
+        region = data.get("region", "Unknown region")
+        country = data.get("country", "Unknown country")
+        isp = data.get("org", "Unknown ISP")
+
+        location_info = f"You are in {city}, {region}, {country}. Your internet provider is {isp}."
+        return location_info
+    except Exception as e:
+        return f"Error fetching location: {str(e)}"
+
+# ✅ Open Websites & Applications
+def open_website(command):
+    if "youtube" in command:
+        webbrowser.open("https://www.youtube.com")
+        return "Opening YouTube..."
+    elif "google" in command:
+        webbrowser.open("https://www.google.com")
+        return "Opening Google..."
+    elif "wikipedia" in command:
+        webbrowser.open("https://www.wikipedia.org")
+        return "Opening Wikipedia..."
+    elif "github" in command:
+        webbrowser.open("https://www.github.com")
+        return "Opening GitHub..."
+    elif "spotify" in command or "play song" in command or "music" in command:
+        webbrowser.open("https://open.spotify.com")
+        return "Opening Spotify..."
+    return "I can't open that website."
+
+
+def get_greeting():
+    """Returns a greeting based on the time of day."""
+    current_hour = datetime.datetime.now().hour
+
+    if 5 <= current_hour < 12:
+        return "Good morning!"
+    elif 12 <= current_hour < 17:
+        return "Good afternoon!"
+    elif 17 <= current_hour < 21:
+        return "Good evening!"
+    else:
+        return "Hello! It's quite late."
+
+
+# ✅ Open Applications
+def open_application(command):
+    if "play nfs" in command:
+        try:
+            os.startfile("C:/Games/Need for Speed - Most Wanted/NFS13.exe")
+            return "Opening Need for Speed..."
+        except Exception as e:
+            return f"Error opening the game: {str(e)}"
+
+# ✅ Get Public IP Address Only
+def get_ip_address():
+    try:
+        response = requests.get("https://api64.ipify.org?format=json")  # Fetch public IP
+        data = response.json()
+        return f"Your public IP address is {data['ip']}."
+    except Exception as e:
+        return f"Error fetching IP address: {str(e)}"
+
+# ✅ Tell Jokes
+def tell_joke():
+    joke = pyjokes.get_joke()
+    text_to_speech(joke)
+    return joke
+def shutdown_pc():
+    text_to_speech("Shutting down the computer. Goodbye!")
+    os.system("shutdown /s /t 5")
+
+def restart_pc():
+    text_to_speech("Restarting the computer. Please wait!")
+    os.system("shutdown /r /t 5")
+
+def sleep_pc():
+    text_to_speech("Putting the computer to sleep. Wake up soon!")
+    os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+
+# ✅ Main Program Loop
+def main():
+    greeting = get_greeting()  # Get the appropriate greeting
+    print(f"Assistant: {greeting}")
+    text_to_speech(greeting)  # Say the greeting
+    
+    print("🎙️ Voice Assistant Activated! Say something...")
+
+    while True:
+        user_text = recognize_speech()
+        print(f"You said: {user_text}")
+
+
+
+        if not user_text or user_text == "Could not understand the audio.":
+            print("Didn't catch that. Please repeat.")
+            continue  # Skip and try again
+
+        if "exit" in user_text or "quit" in user_text or "stop" in user_text:  # ✅ Exit Condition Updated
+            ai_response = "Goodbye! Have a great day! 👋"
+            print(f"Assistant: {ai_response}")
+            text_to_speech(ai_response)  # Make it say goodbye
+            break
+        if "shutdown" in user_text:
+            shutdown_pc()
+            break
+        elif "restart" in user_text:
+            restart_pc()
+            break
+        elif "sleep" in user_text:
+            sleep_pc()
+            break
+        if "time" in user_text:
+            ai_response = f"The current time is {get_time()}."
+        elif "date" in user_text:
+            ai_response = f"Today's date is {get_date()}."
+        elif "battery" in user_text or "charge" in user_text:
+            ai_response = get_battery_status()
+        elif "hello" in user_text or "hi" in user_text:
+            ai_response = "Hello! How can I help you?"
+        elif "joke" in user_text:
+            ai_response = tell_joke()
+        elif "open" in user_text:
+            ai_response = open_website(user_text)
+        elif "where am i" in user_text or "what's my location" in user_text or "my location" in user_text:
+            ai_response = get_location()
+        elif "my ip" in user_text or "what is my ip" in user_text:  # ✅ New Command for IP Address
+            ai_response = get_ip_address()
+        else:
+            ai_response = get_ai_response(user_text)
+
+        print(f"Assistant: {ai_response}")
+        text_to_speech(ai_response)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
